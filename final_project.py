@@ -1,5 +1,6 @@
 import re
 import os
+import json
 import nltk
 
 class Event():
@@ -14,26 +15,6 @@ class Event():
 
     def add_position(self, position):
         self.position = position
-
-
-def build_event_graph(fable):
-    """
-    Given a sentence- and word-tokenized, part-of-speech tagged fable,
-    iterate through (token, tag) pairs looking for verbs which will function
-    as events.  Adjust pointers to default position of chronological order.
-    """
-    events = []
-    for i, sentence in enumerate(fable):
-        for j, token in enumerate(sentence):
-            if token[1].startswith('V'):
-                e = Event(token)
-                e.add_position((i, j))
-                if events:
-                    e.before = events[-1]
-                events.append(e)
-    for i, event in enumerate(events[1:]):
-        event.after = events[i - 1]
-    return events
 
 def read_file():
     """ Some basic text pre-processing on the input file. """
@@ -57,7 +38,44 @@ def tokenize(fables):
              for sent in nltk.sent_tokenize(fable)[:-1]]
             for fable in fables]
 
+def read_json():
+    with open(os.getcwd() + '/data/processed_fables.txt', 'r') as infile:
+        return json.load(infile)
 
-fables = read_file()
-fables = tokenize(fables)
-graph = build_event_graph(fables[0])
+def build_event_graph(fable):
+    """
+    Given a sentence- and word-tokenized, part-of-speech tagged fable,
+    iterate through (token, tag) pairs looking for verbs which will function
+    as events.  Adjust pointers to default position of chronological order.
+    """
+    events = []
+    for i, sentence in enumerate(fable):
+        for j, token in enumerate(sentence):
+            if token[1].startswith('V'):
+                e = Event(token)
+                e.add_position((i, j))
+                if events:
+                    e.before = events[-1]
+                events.append(e)
+    for i, event in enumerate(events[:-1]):
+        event.after = events[i + 1]
+    return events
+
+def show_events(events):
+    for event in events:
+        word = event.word
+        if event.before:
+            before = event.before.word
+        else:
+            before = "None"
+        if event.after:
+            after = event.after.word
+        else:
+            after = "None"
+        print before, word, after
+    
+
+if __name__ == "__main__":
+    fables = read_json()
+    graph = build_event_graph(fables[0])
+    show_events(graph)
