@@ -2,6 +2,7 @@ import re
 import os
 import json
 import nltk
+from xml.etree import ElementTree
 
 class Event():
     def __init__(self, item):
@@ -16,6 +17,22 @@ class Event():
     def add_position(self, position):
         self.position = position
 
+class Timex():
+    def __init__(self, item):
+        self.word = item[0]
+        self.pos = item[1]
+        self.position = None
+
+    def add_position(self, position):
+        self.position = position
+
+TIME_EXPRESSIONS = {'after', 'afterward', 'afterwards', 'ago', 'as',
+                    'as soon as', 'as long as', 'at', 'before', 'between', 'by',
+                    'during', 'for', 'in', 'into', 'last', 'meanwhile', 'next',
+                    'now', 'on', 'once', 'then', 'tomorrow', 'until', 'when',
+                    'while', 'yesterday'}
+
+'''
 def read_file():
     """ Some basic text pre-processing on the input file. """
     with open(os.getcwd() + '/data/fables.txt') as infile:
@@ -38,6 +55,17 @@ def tokenize(fables):
              for sent in nltk.sent_tokenize(fable)[:-1]]
             for fable in fables]
 
+def get_time_expressions():
+    path = os.getcwd() + '/tempeval_training/data/taskAB/'
+    pattern = r'>(\w+)<\/TIMEX3>'
+    timexes = []
+    for root, dirs, files in os.walk(path):
+        for f in files:
+            with open(path + f, 'r') as infile:
+                timexes.extend(re.findall(pattern, infile.read()))
+    return timexes
+'''           
+
 def read_json():
     with open(os.getcwd() + '/data/processed_fables.txt', 'r') as infile:
         return json.load(infile)
@@ -48,18 +76,28 @@ def build_event_graph(fable):
     iterate through (token, tag) pairs looking for verbs which will function
     as events.  Adjust pointers to default position of chronological order.
     """
-    events = []
+    graph = []
     for i, sentence in enumerate(fable):
         for j, token in enumerate(sentence):
             if token[1].startswith('V'):
-                e = Event(token)
-                e.add_position((i, j))
-                if events:
-                    e.before = events[-1]
-                events.append(e)
-    for i, event in enumerate(events[:-1]):
-        event.after = events[i + 1]
-    return events
+                event = Event(token)
+                event.add_position((i, j))
+                if graph:
+                    event.before = graph[-1]
+                graph.append(event)
+    for i, item in enumerate(graph[:-1]):
+        event.after = graph[i + 1]
+    return graph
+
+def build_timex_graph(fable):
+    graph = []
+    for i, sentence in enumerate(fable):
+        for j, token in enumerate(sentence):
+            if token[0] in TIME_EXPRESSIONS and token[1] in ('IN', 'RB'):
+                timex = Timex(token)
+                timex.add_position((i, j))
+                graph.append(timex)
+    return graph
 
 def show_events(events):
     for event in events:
@@ -73,9 +111,9 @@ def show_events(events):
         else:
             after = "None"
         print before, word, after
-    
+
 
 if __name__ == "__main__":
     fables = read_json()
-    graph = build_event_graph(fables[0])
-    show_events(graph)
+    events = build_event_graph(fables[0])
+    timexes = build_timex_graph(fables[0])
