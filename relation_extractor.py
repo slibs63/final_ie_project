@@ -1,5 +1,6 @@
 import os
 import re
+import copy
 import itertools
 
 def get_windows_tokens():
@@ -124,6 +125,14 @@ def find_relation(relation):
     else:
         return ('no relation')
 
+    
+def find_relations(relations):
+    for family in relations:
+        for i, relation in enumerate(relations[family]):
+            relations[family][i] = (relation, find_relation(relation))
+    return relations
+
+
 def compute_confidence(relations):
     """
     For each potential relation, calculate the confidence that the relation
@@ -139,23 +148,18 @@ def compute_confidence(relations):
     listing = sorted(listing, key=lambda x: x[1])
     listing.reverse()
     return listing
-    
-def find_relations(relations):
-    for family in relations:
-        for i, relation in enumerate(relations[family]):
-            relations[family][i] = (relation, find_relation(relation))
-    return relations
 
-def group_siblings(relations, family):
-    sibling_contenders = []
+
+def group_by_relation(relations, family, relationship):
+    contenders = []
     for relation in relations[family]:
         try:
-            total_rels = float(sum([rel[1] for rel in relation[1]]))
-            if relation[1][0][0] == 'sibling' and relation[1][0][1] > 2:
-                sibling_contenders.append(relation)
+            if relation[1][0][0] == relationship and relation[1][0][1] > 2:
+                contenders.append(relation)
         except IndexError:
             pass
-    return sibling_contenders
+    return contenders
+
 
 def is_equivalence_class(relations):
     """
@@ -188,39 +192,26 @@ def get_equivalence_classes(relations):
     Takes in a list of tuples signifying a relation, checks which of them form
     an equivalence class.
     """
-    print "Getting equivalence classes"
+    original_list = copy.deepcopy(relations)
     if is_equivalence_class(relations):
-        return relations
-    accepts = []
-    rejects = []
+        return relations, []
     # While the set of relations does not form an equivalence class, keep
     # removing the least frequently occurring character until it is one.
     while not is_equivalence_class(relations):
         counts = get_rel_counts(relations)
         least_frequent = sorted(counts, key=counts.get)[0]
-        print "Removing", least_frequent
-        # Put tuples with the least frequent character's name in rejects,
-        # remove it from relations:
-        rejects.extend([rel for rel in relations if least_frequent in rel])
-        relations = [rel for rel in relations if rel not in rejects]
-        print "rejects:", rejects
-        if relations and is_equivalence_class(relations):
-            accepts.append(relations)
-            # Remove the names from 'accepts' in rejects:
-            accepted = set()
-            for rel in relations:
-                accepted.update(set(rel))
-            if not accepted:
-                break
-            relations = [rel for rel in rejects if rel[0] not in accepted and
-                         rel[1] not in accepted]
-            print "relations:", relations
-    return accepts, relations
+        relations = [rel for rel in relations if least_frequent not in rel]
+    eqs = set()
+    for rel in relations:
+        eqs.update(rel)
+    rejects = [rel for rel in original_list if
+               rel[0] not in eqs and rel[1] not in eqs]
+    return relations, rejects
     
 
 if __name__ == "__main__":  
     families = extract_families()
     relations = potential_relations(families)
     relations = find_relations(relations)
-    siblings = group_siblings(relations, 'Stark')
-    eqs, rejects = get_equivalence_classes([s[0] for s in siblings])
+    siblings = group_by_relation(relations, 'Lannister', 'sibling')
+    accepts, rejects = get_equivalence_classes([s[0] for s in siblings])
